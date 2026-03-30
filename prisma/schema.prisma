@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Restaurant {
+  id                  String   @id @default(cuid())
+  nom                 String
+  adresse             String?
+  serviceMode         String   @default("sequential") // "sequential" | "simultaneous"
+  langues             String   @default("fr,en") // comma-separated locale codes
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tables              Table[]
+  categories          Category[]
+}
+
+model Table {
+  id           String   @id @default(cuid())
+  restaurantId String
+  numero       String
+  qrToken      String   @unique @default(cuid())
+  statut       String   @default("libre") // "libre" | "occupee"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+}
+
+model Category {
+  id           String   @id @default(cuid())
+  restaurantId String
+  nomJson      String   // JSON: {"fr": "Entrées", "en": "Starters"}
+  ordre        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  plats        Plat[]
+}
+
+model Plat {
+  id           String   @id @default(cuid())
+  categorieId  String
+  nomJson      String   // JSON multilingue
+  descriptionJson String @default("{}")
+  prix         Float
+  photoUrl     String?
+  disponible   Boolean  @default(true)
+  typeService  String   @default("plat") // "entree" | "plat" | "dessert" | "boisson" | "autre"
+  ordre        Int      @default(0)
+  allergenes   String   @default("[]") // JSON array of allergen codes
+  tags         String   @default("[]") // JSON array of diet tags
+  ingredientsJson String @default("{}") // JSON multilingue
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  categorie    Category @relation(fields: [categorieId], references: [id], onDelete: Cascade)
+  lignes       LigneCommande[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tableId   String
+  statut    String   @default("ouverte") // "ouverte" | "terminee"
+  ouvertePar String? // serveur name/id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  closedAt  DateTime?
+
+  table     Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  commandes Commande[]
+}
+
+model Commande {
+  id        String   @id @default(cuid())
+  sessionId String
+  statut    String   @default("en_cours") // "en_cours" | "terminee"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  lignes    LigneCommande[]
+}
+
+model LigneCommande {
+  id             String   @id @default(cuid())
+  commandeId     String
+  platId         String
+  quantite       Int      @default(1)
+  statut         String   @default("en_attente") // "en_attente" | "a_lancer" | "servi" | "termine"
+  numeroService  Int      @default(1) // 1=entrée, 2=plat, 3=dessert
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  commande       Commande @relation(fields: [commandeId], references: [id], onDelete: Cascade)
+  plat           Plat     @relation(fields: [platId], references: [id])
+}
