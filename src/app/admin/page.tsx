@@ -137,7 +137,12 @@ export default function AdminPage() {
 
   async function deletePlat(id: string) {
     if (!confirm("Supprimer ce plat ?")) return;
-    await fetch(`/api/admin/plats/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/plats/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json() as { error: string };
+      alert(err.error ?? "Erreur lors de la suppression");
+      return;
+    }
     fetchMenu();
   }
 

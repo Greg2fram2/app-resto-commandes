@@ -44,6 +44,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  const orderCount = await prisma.ligneCommande.count({ where: { platId: id } });
+  if (orderCount > 0) {
+    return NextResponse.json(
+      { error: "Ce plat a des commandes associées. Marquez-le indisponible plutôt que de le supprimer." },
+      { status: 409 }
+    );
+  }
+
   await prisma.plat.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

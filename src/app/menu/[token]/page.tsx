@@ -101,8 +101,14 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
   }
 
   useEffect(() => {
-    setPendingCount(loadQueue().length);
-    setIsOnline(navigator.onLine);
+    const initialCount = loadQueue().length;
+    setPendingCount(initialCount);
+    const online = navigator.onLine;
+    setIsOnline(online);
+    // Flush any queued orders from a previous offline session
+    if (online && initialCount > 0) {
+      flushQueue();
+    }
     const handleOnline = async () => {
       setIsOnline(true);
       await flushQueue();
