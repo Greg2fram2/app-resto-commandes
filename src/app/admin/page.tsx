@@ -113,7 +113,7 @@ export default function AdminPage() {
     fetchMenu();
   }
 
-  async function savePlat(updates: Partial<PlatRaw>) {
+  async function savePlat(updates: Partial<PlatRaw & { photoUrl: string | null }>) {
     if (!editingPlat) return;
     setSaving(true);
     const body: Record<string, unknown> = { ...updates };
@@ -144,6 +144,8 @@ export default function AdminPage() {
     nomFr: string;
     nomEn: string;
     descriptionFr: string;
+    descriptionEn: string;
+    photoUrl: string;
     prix: number;
     typeService: string;
     allergenes: string[];
@@ -156,8 +158,9 @@ export default function AdminPage() {
       body: JSON.stringify({
         categorieId: data.categorieId,
         nomJson: JSON.stringify({ fr: data.nomFr, en: data.nomEn }),
-        descriptionJson: JSON.stringify({ fr: data.descriptionFr }),
+        descriptionJson: JSON.stringify({ fr: data.descriptionFr, en: data.descriptionEn }),
         prix: data.prix,
+        photoUrl: data.photoUrl || undefined,
         typeService: data.typeService,
         allergenes: data.allergenes,
         tags: data.tags,
@@ -226,7 +229,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-gray-800 text-white px-6 py-4">
-        <h1 className="text-xl font-bold">⚙️ Back-office — La Belle Époque</h1>
+        <h1 className="text-xl font-bold">⚙️ Back-office — {restaurantConfig?.nom ?? "Restaurant"}</h1>
         <p className="text-gray-400 text-sm mt-0.5">Gestion du restaurant</p>
       </header>
 
@@ -586,6 +589,10 @@ function EditPlatModal({
   const [descFr, setDescFr] = useState(() => {
     try { return (JSON.parse(plat.descriptionJson) as Record<string, string>).fr ?? ""; } catch { return ""; }
   });
+  const [descEn, setDescEn] = useState(() => {
+    try { return (JSON.parse(plat.descriptionJson) as Record<string, string>).en ?? ""; } catch { return ""; }
+  });
+  const [photoUrl, setPhotoUrl] = useState(plat.photoUrl ?? "");
   const [prix, setPrix] = useState(plat.prix);
   const [typeService, setTypeService] = useState(plat.typeService);
   const [selectedAllergens, setSelectedAllergens] = useState<string[]>(() => {
@@ -604,10 +611,11 @@ function EditPlatModal({
 
   function handleSave() {
     const nomJson = JSON.stringify({ fr: nomFr, en: nomEn });
-    const descriptionJson = JSON.stringify({ fr: descFr });
+    const descriptionJson = JSON.stringify({ fr: descFr, en: descEn });
     onSave({
       nomJson,
       descriptionJson,
+      photoUrl: photoUrl || null,
       prix,
       typeService,
       allergenes: JSON.stringify(selectedAllergens),
@@ -632,9 +640,19 @@ function EditPlatModal({
                 <input value={nomEn} onChange={(e) => setNomEn(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description (FR)</label>
+                <textarea value={descFr} onChange={(e) => setDescFr(e.target.value)} rows={2} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description (EN)</label>
+                <textarea value={descEn} onChange={(e) => setDescEn(e.target.value)} rows={2} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="English description" />
+              </div>
+            </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description (FR)</label>
-              <textarea value={descFr} onChange={(e) => setDescFr(e.target.value)} rows={2} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">URL photo</label>
+              <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -703,6 +721,8 @@ function AddPlatModal({
     nomFr: string;
     nomEn: string;
     descriptionFr: string;
+    descriptionEn: string;
+    photoUrl: string;
     prix: number;
     typeService: string;
     allergenes: string[];
@@ -715,6 +735,8 @@ function AddPlatModal({
   const [nomFr, setNomFr] = useState("");
   const [nomEn, setNomEn] = useState("");
   const [descriptionFr, setDescriptionFr] = useState("");
+  const [descriptionEn, setDescriptionEn] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
   const [prix, setPrix] = useState(0);
   const [typeService, setTypeService] = useState("plat");
   const [selectedAllergens, setSelectedAllergens] = useState<string[]>([]);
@@ -729,7 +751,7 @@ function AddPlatModal({
 
   function handleSave() {
     if (!nomFr.trim() || prix <= 0 || !categorieId) return;
-    onSave({ categorieId, nomFr, nomEn, descriptionFr, prix, typeService, allergenes: selectedAllergens, tags: selectedTags });
+    onSave({ categorieId, nomFr, nomEn, descriptionFr, descriptionEn, photoUrl, prix, typeService, allergenes: selectedAllergens, tags: selectedTags });
   }
 
   return (
@@ -757,9 +779,19 @@ function AddPlatModal({
                 <input value={nomEn} onChange={(e) => setNomEn(e.target.value)} placeholder="English name" className="w-full border rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description (FR)</label>
+                <textarea value={descriptionFr} onChange={(e) => setDescriptionFr(e.target.value)} rows={2} placeholder="Description courte..." className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description (EN)</label>
+                <textarea value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} rows={2} placeholder="English description" className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description (FR)</label>
-              <textarea value={descriptionFr} onChange={(e) => setDescriptionFr(e.target.value)} rows={2} placeholder="Description courte..." className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">URL photo</label>
+              <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

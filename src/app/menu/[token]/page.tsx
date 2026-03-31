@@ -62,10 +62,49 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
   const [tableInfo, setTableInfo] = useState<{ numero: string; restaurantId: string; restaurantNom: string } | null>(null);
   const [tableNotOpen, setTableNotOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const QUEUE_KEY = `offline-orders-${token}`;
+
+  function loadQueue(): Array<{ items: { platId: string; quantite: number; notes?: string }[]; locale: string }> {
+    try {
+      return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? "[]") as Array<{ items: { platId: string; quantite: number; notes?: string }[]; locale: string }>;
+    } catch {
+      return [];
+    }
+  }
+
+  function saveQueue(queue: Array<{ items: { platId: string; quantite: number; notes?: string }[]; locale: string }>) {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    setPendingCount(queue.length);
+  }
+
+  async function flushQueue() {
+    const queue = loadQueue();
+    if (queue.length === 0) return;
+    const remaining: typeof queue = [];
+    for (const order of queue) {
+      try {
+        const res = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tableToken: token, items: order.items, locale: order.locale }),
+        });
+        if (!res.ok) remaining.push(order);
+      } catch {
+        remaining.push(order);
+      }
+    }
+    saveQueue(remaining);
+  }
 
   useEffect(() => {
+    setPendingCount(loadQueue().length);
     setIsOnline(navigator.onLine);
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = async () => {
+      setIsOnline(true);
+      await flushQueue();
+    };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -73,6 +112,7 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -128,13 +168,23 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
   async function confirmOrder() {
     setSending(true);
     setError("");
-    try {
-      const items = Array.from(cart.values()).map((item) => ({
-        platId: item.plat.id,
-        quantite: item.quantite,
-        notes: item.notes,
-      }));
+    const items = Array.from(cart.values()).map((item) => ({
+      platId: item.plat.id,
+      quantite: item.quantite,
+      notes: item.notes,
+    }));
 
+    if (!isOnline) {
+      const queue = loadQueue();
+      saveQueue([...queue, { items, locale }]);
+      setCart(new Map());
+      setShowCart(false);
+      setOrderSent(true);
+      setSending(false);
+      return;
+    }
+
+    try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -156,7 +206,12 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
       setShowCart(false);
       setOrderSent(true);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erreur lors de l'envoi");
+      // Network failure — queue for later
+      const queue = loadQueue();
+      saveQueue([...queue, { items, locale }]);
+      setCart(new Map());
+      setShowCart(false);
+      setOrderSent(true);
     } finally {
       setSending(false);
     }
@@ -242,6 +297,12 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
       {!isOnline && (
         <div className="bg-orange-500 text-white text-center text-sm py-1.5 font-medium">
           📵 Hors ligne — les commandes seront envoyées à la reconnexion
+          {pendingCount > 0 && <span className="ml-2 bg-white/20 rounded-full px-2">{pendingCount} en attente</span>}
+        </div>
+      )}
+      {isOnline && pendingCount > 0 && (
+        <div className="bg-blue-500 text-white text-center text-sm py-1.5 font-medium">
+          📤 Envoi de {pendingCount} commande{pendingCount > 1 ? "s" : ""} en attente…
         </div>
       )}
 
@@ -397,8 +458,10 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
 
       {orderSent && cartCount === 0 && (
         <div className="fixed bottom-4 left-4 right-4">
-          <div className="bg-green-500 text-white py-4 rounded-2xl shadow-lg font-semibold text-center">
-            ✅ Commande envoyée ! Vous pouvez recommander à tout moment.
+          <div className={`${isOnline ? "bg-green-500" : "bg-orange-500"} text-white py-4 rounded-2xl shadow-lg font-semibold text-center`}>
+            {isOnline
+              ? "✅ Commande envoyée ! Vous pouvez recommander à tout moment."
+              : "📵 Commande enregistrée. Elle sera envoyée à la reconnexion."}
           </div>
         </div>
       )}
