@@ -78,29 +78,51 @@ export default function KitchenPage() {
   useEffect(() => {
     fetchOrders();
 
-    const evtSource = new EventSource(`/api/sse?restaurantId=${restaurantId}`);
+    let evtSource: EventSource | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryDelay = 1000;
 
-    evtSource.addEventListener("open", () => setConnected(true));
-    evtSource.addEventListener("error", () => setConnected(false));
+    function connect() {
+      evtSource = new EventSource(`/api/sse?restaurantId=${restaurantId}`);
 
-    evtSource.addEventListener("new-order", (e: MessageEvent) => {
-      const data = JSON.parse(e.data as string) as { tableId: string };
-      playAlert();
-      setNewTableIds((prev) => new Set([...prev, data.tableId]));
-      fetchOrders();
-      setTimeout(() => {
-        setNewTableIds((prev) => {
-          const next = new Set(prev);
-          next.delete(data.tableId);
-          return next;
-        });
-      }, 5000);
-    });
+      evtSource.addEventListener("open", () => {
+        setConnected(true);
+        retryDelay = 1000;
+      });
 
-    evtSource.addEventListener("lines-updated", () => fetchOrders());
-    evtSource.addEventListener("line-status-changed", () => fetchOrders());
+      evtSource.addEventListener("error", () => {
+        setConnected(false);
+        evtSource?.close();
+        retryTimeout = setTimeout(() => {
+          retryDelay = Math.min(retryDelay * 2, 30000);
+          connect();
+        }, retryDelay);
+      });
 
-    return () => evtSource.close();
+      evtSource.addEventListener("new-order", (e: MessageEvent) => {
+        const data = JSON.parse(e.data as string) as { tableId: string };
+        playAlert();
+        setNewTableIds((prev) => new Set([...prev, data.tableId]));
+        fetchOrders();
+        setTimeout(() => {
+          setNewTableIds((prev) => {
+            const next = new Set(prev);
+            next.delete(data.tableId);
+            return next;
+          });
+        }, 5000);
+      });
+
+      evtSource.addEventListener("lines-updated", () => fetchOrders());
+      evtSource.addEventListener("line-status-changed", () => fetchOrders());
+    }
+
+    connect();
+
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+      evtSource?.close();
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchOrders]);
 

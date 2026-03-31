@@ -60,16 +60,40 @@ export default function StaffPage() {
   useEffect(() => {
     fetchTables();
 
-    const evtSource = new EventSource(`/api/sse?restaurantId=${restaurantId}`);
-    evtSource.addEventListener("open", () => setConnected(true));
-    evtSource.addEventListener("error", () => setConnected(false));
-    evtSource.addEventListener("new-order", () => fetchTables());
-    evtSource.addEventListener("lines-updated", () => fetchTables());
-    evtSource.addEventListener("line-status-changed", () => fetchTables());
-    evtSource.addEventListener("table-opened", () => fetchTables());
-    evtSource.addEventListener("table-closed", () => fetchTables());
+    let evtSource: EventSource | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryDelay = 1000;
 
-    return () => evtSource.close();
+    function connect() {
+      evtSource = new EventSource(`/api/sse?restaurantId=${restaurantId}`);
+
+      evtSource.addEventListener("open", () => {
+        setConnected(true);
+        retryDelay = 1000;
+      });
+
+      evtSource.addEventListener("error", () => {
+        setConnected(false);
+        evtSource?.close();
+        retryTimeout = setTimeout(() => {
+          retryDelay = Math.min(retryDelay * 2, 30000);
+          connect();
+        }, retryDelay);
+      });
+
+      evtSource.addEventListener("new-order", () => fetchTables());
+      evtSource.addEventListener("lines-updated", () => fetchTables());
+      evtSource.addEventListener("line-status-changed", () => fetchTables());
+      evtSource.addEventListener("table-opened", () => fetchTables());
+      evtSource.addEventListener("table-closed", () => fetchTables());
+    }
+
+    connect();
+
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+      evtSource?.close();
+    };
   }, [fetchTables]);
 
   async function openTable(tableId: string) {
