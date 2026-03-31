@@ -59,23 +59,39 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
     }
     return "fr";
   });
-  const [tableInfo, setTableInfo] = useState<{ numero: string } | null>(null);
+  const [tableInfo, setTableInfo] = useState<{ numero: string; restaurantId: string; restaurantNom: string } | null>(null);
   const [tableNotOpen, setTableNotOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/menu?locale=${locale}`)
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const restaurantId = tableInfo?.restaurantId ?? "demo-restaurant";
+    fetch(`/api/menu?locale=${locale}&restaurantId=${restaurantId}`)
       .then((r) => r.json())
       .then((data: Category[]) => {
         setCategories(data);
         if (data.length > 0) setActiveCategory(data[0].id);
       })
       .catch(() => {});
+  }, [locale, tableInfo?.restaurantId]);
 
+  useEffect(() => {
     fetch(`/api/tables/by-token?token=${token}`)
       .then((r) => r.json())
-      .then((data: { numero: string }) => setTableInfo(data))
+      .then((data: { numero: string; restaurantId: string; restaurantNom: string }) => setTableInfo(data))
       .catch(() => {});
-  }, [token, locale]);
+  }, [token]);
 
   const cartTotal = Array.from(cart.values()).reduce(
     (sum, item) => sum + item.plat.prix * item.quantite,
@@ -222,13 +238,22 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Offline indicator */}
+      {!isOnline && (
+        <div className="bg-orange-500 text-white text-center text-sm py-1.5 font-medium">
+          📵 Hors ligne — les commandes seront envoyées à la reconnexion
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white shadow-sm px-4 py-4 flex items-center justify-between">
         <div>
           <p className="text-xs text-gray-400 uppercase tracking-wide">
             {tableInfo ? `Table ${tableInfo.numero}` : ""}
           </p>
-          <h1 className="text-xl font-bold text-gray-800">La Belle Époque</h1>
+          <h1 className="text-xl font-bold text-gray-800">
+            {tableInfo?.restaurantNom ?? "Restaurant"}
+          </h1>
         </div>
         <select
           value={locale}
