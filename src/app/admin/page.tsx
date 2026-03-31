@@ -61,10 +61,18 @@ const TAG_LABELS: Record<string, string> = {
   casher: "Casher", "sans-gluten": "Sans gluten", "sans-lactose": "Sans lactose",
 };
 
+interface RestaurantConfig {
+  id: string;
+  nom: string;
+  serviceMode: string;
+  langues: string;
+}
+
 export default function AdminPage() {
   const [categories, setCategories] = useState<CategoryRaw[]>([]);
   const [tables, setTables] = useState<TableRaw[]>([]);
-  const [activeSection, setActiveSection] = useState<"menu" | "tables" | "qr">("menu");
+  const [restaurantConfig, setRestaurantConfig] = useState<RestaurantConfig | null>(null);
+  const [activeSection, setActiveSection] = useState<"menu" | "tables" | "qr" | "settings">("menu");
   const [editingPlat, setEditingPlat] = useState<PlatRaw | null>(null);
   const [showAddPlat, setShowAddPlat] = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
@@ -82,9 +90,18 @@ export default function AdminPage() {
     setTables(data);
   };
 
+  const fetchRestaurant = async () => {
+    const res = await fetch("/api/admin/restaurant");
+    if (res.ok) {
+      const data = await res.json() as RestaurantConfig;
+      setRestaurantConfig(data);
+    }
+  };
+
   useEffect(() => {
     fetchMenu();
     fetchTables();
+    fetchRestaurant();
   }, []);
 
   async function toggleDisponible(plat: PlatRaw) {
@@ -165,6 +182,32 @@ export default function AdminPage() {
     fetchMenu();
   }
 
+  async function deleteCategory(cat: CategoryRaw) {
+    if (cat.plats.length > 0) {
+      alert(`Impossible : cette catégorie contient ${cat.plats.length} plat(s). Supprimez-les d'abord.`);
+      return;
+    }
+    if (!confirm(`Supprimer la catégorie "${parseNom(cat.nomJson)}" ?`)) return;
+    const res = await fetch(`/api/admin/categories/${cat.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json() as { error: string };
+      alert(err.error ?? "Erreur lors de la suppression");
+      return;
+    }
+    fetchMenu();
+  }
+
+  async function saveRestaurant(updates: Partial<RestaurantConfig>) {
+    setSaving(true);
+    await fetch("/api/admin/restaurant", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    setSaving(false);
+    fetchRestaurant();
+  }
+
   async function deleteTable(id: string) {
     if (!confirm("Supprimer cette table ? Cette action est irréversible.")) return;
     await fetch(`/api/tables/${id}`, { method: "DELETE" });
@@ -189,7 +232,7 @@ export default function AdminPage() {
 
       {/* Nav */}
       <nav className="bg-white border-b flex">
-        {(["menu", "tables", "qr"] as const).map((s) => (
+        {(["menu", "tables", "qr", "settings"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setActiveSection(s)}
@@ -199,7 +242,7 @@ export default function AdminPage() {
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {s === "menu" ? "Menu" : s === "tables" ? "Tables" : "QR Codes"}
+            {s === "menu" ? "Menu" : s === "tables" ? "Tables" : s === "qr" ? "QR Codes" : "Paramètres"}
           </button>
         ))}
       </nav>
@@ -228,10 +271,18 @@ export default function AdminPage() {
 
             {categories.map((cat) => (
               <div key={cat.id}>
-                <h2 className="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  {parseNom(cat.nomJson)}
-                  <span className="text-gray-400 font-normal text-sm">({cat.plats.length} plats)</span>
-                </h2>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-gray-700 flex items-center gap-2">
+                    {parseNom(cat.nomJson)}
+                    <span className="text-gray-400 font-normal text-sm">({cat.plats.length} plats)</span>
+                  </h2>
+                  <button
+                    onClick={() => deleteCategory(cat)}
+                    className="text-xs text-red-400 hover:text-red-600"
+                  >
+                    Supprimer catégorie
+                  </button>
+                </div>
                 <div className="bg-white rounded-2xl shadow-sm divide-y">
                   {cat.plats.length === 0 && (
                     <p className="p-4 text-gray-400 text-sm italic">Aucun plat dans cette catégorie</p>
@@ -294,6 +345,15 @@ export default function AdminPage() {
         {/* QR SECTION */}
         {activeSection === "qr" && (
           <QRCodeSection tables={tables} />
+        )}
+
+        {/* SETTINGS SECTION */}
+        {activeSection === "settings" && restaurantConfig && (
+          <SettingsSection
+            config={restaurantConfig}
+            onSave={saveRestaurant}
+            saving={saving}
+          />
         )}
       </div>
 
@@ -423,24 +483,78 @@ function TablesSection({
 function QRCodeSection({ tables }: { tables: TableRaw[] }) {
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
+  function downloadQR(tableNumero: string, qrToken: string) {
+    const url = `${baseUrl}/menu/${qrToken}`;
+    const qrUrl = `/api/admin/qr?url=${encodeURIComponent(url)}`;
+    const a = document.createElement("a");
+    a.href = qrUrl;
+    a.download = `qr-table-${tableNumero}.svg`;
+    a.click();
+  }
+
+  function printQR(tableNumero: string, qrToken: string) {
+    const url = `${baseUrl}/menu/${qrToken}`;
+    const qrUrl = `/api/admin/qr?url=${encodeURIComponent(url)}`;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>QR Table ${tableNumero}</title>
+      <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 40px; }
+        h1 { font-size: 28px; margin-bottom: 8px; }
+        p { color: #666; margin-bottom: 24px; font-size: 14px; }
+        img { width: 240px; height: 240px; }
+      </style></head>
+      <body>
+        <h1>Table ${tableNumero}</h1>
+        <p>Scannez pour commander</p>
+        <img src="${qrUrl}" />
+        <script>window.onload = () => { window.print(); }<\/script>
+      </body></html>
+    `);
+    win.document.close();
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-bold text-gray-800">QR Codes par table</h2>
+      <p className="text-sm text-gray-500">Imprimez ou téléchargez les QR codes à déposer sur les tables.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {tables.map((table) => {
           const url = `${baseUrl}/menu/${table.qrToken}`;
+          const qrImgUrl = `/api/admin/qr?url=${encodeURIComponent(url)}`;
           return (
-            <div key={table.id} className="bg-white rounded-xl shadow-sm p-4">
-              <h3 className="font-bold text-gray-700 mb-1">Table {table.numero}</h3>
-              <p className="text-xs text-gray-400 break-all mb-3">{url}</p>
-              <a
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-indigo-600 hover:underline font-medium"
-              >
-                Ouvrir le menu →
-              </a>
+            <div key={table.id} className="bg-white rounded-xl shadow-sm p-5 flex flex-col items-center text-center">
+              <h3 className="font-bold text-gray-700 text-lg mb-3">Table {table.numero}</h3>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrImgUrl}
+                alt={`QR Table ${table.numero}`}
+                className="w-40 h-40 mb-3 rounded-lg border border-gray-100"
+              />
+              <p className="text-xs text-gray-400 break-all mb-4">{url}</p>
+              <div className="flex gap-2 w-full">
+                <button
+                  onClick={() => printQR(table.numero, table.qrToken)}
+                  className="flex-1 text-xs bg-gray-800 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition"
+                >
+                  Imprimer
+                </button>
+                <button
+                  onClick={() => downloadQR(table.numero, table.qrToken)}
+                  className="flex-1 text-xs bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 transition"
+                >
+                  Télécharger
+                </button>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 text-xs bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-100 transition"
+                >
+                  Tester
+                </a>
+              </div>
             </div>
           );
         })}
@@ -693,6 +807,95 @@ function AddPlatModal({
               {saving ? "Création..." : "Créer le plat"}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Settings Section
+// ──────────────────────────────────────────────────────────────
+function SettingsSection({
+  config,
+  onSave,
+  saving,
+}: {
+  config: { id: string; nom: string; serviceMode: string; langues: string };
+  onSave: (updates: Partial<{ nom: string; serviceMode: string; langues: string }>) => void;
+  saving: boolean;
+}) {
+  const [nom, setNom] = useState(config.nom);
+  const [serviceMode, setServiceMode] = useState(config.serviceMode);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    await onSave({ nom, serviceMode });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div className="space-y-6 max-w-lg">
+      <h2 className="text-lg font-bold text-gray-800">Paramètres du restaurant</h2>
+
+      <div className="bg-white rounded-2xl shadow-sm p-6 space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Nom du restaurant</label>
+          <input
+            value={nom}
+            onChange={(e) => setNom(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Mode de service</label>
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="serviceMode"
+                value="sequential"
+                checked={serviceMode === "sequential"}
+                onChange={() => setServiceMode("sequential")}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="font-medium text-sm text-gray-800">Séquentiel (recommandé)</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Les entrées partent en cuisine immédiatement. Le serveur envoie manuellement les plats puis les desserts.
+                </p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="serviceMode"
+                value="simultaneous"
+                checked={serviceMode === "simultaneous"}
+                onChange={() => setServiceMode("simultaneous")}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="font-medium text-sm text-gray-800">Simultané (bar / fast-casual)</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Tous les plats partent en cuisine immédiatement à la confirmation de commande.
+                </p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-gray-800 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-gray-700 disabled:opacity-50 transition"
+          >
+            {saving ? "Sauvegarde..." : "Sauvegarder"}
+          </button>
+          {saved && <span className="text-green-600 text-sm font-medium">✅ Sauvegardé</span>}
         </div>
       </div>
     </div>
