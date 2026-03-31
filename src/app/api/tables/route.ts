@@ -11,8 +11,10 @@ export async function GET(request: NextRequest) {
     include: {
       sessions: {
         where: { statut: "ouverte" },
+        orderBy: { createdAt: "desc" },
         include: {
           commandes: {
+            orderBy: { createdAt: "asc" },
             include: {
               lignes: {
                 include: { plat: true },
