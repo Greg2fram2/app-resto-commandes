@@ -48,13 +48,16 @@ export default function KitchenPage() {
   const [orders, setOrders] = useState<TableOrder[]>([]);
   const [connected, setConnected] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
+  const soundOnRef = useRef(true);
   const [locale, setLocale] = useState("fr");
   const [newTableIds, setNewTableIds] = useState<Set<string>>(new Set());
   const audioCtxRef = useRef<AudioContext | null>(null);
   const restaurantId = "demo-restaurant";
 
+  soundOnRef.current = soundOn;
+
   function playAlert() {
-    if (!soundOn) return;
+    if (!soundOnRef.current) return;
     try {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new AudioContext();

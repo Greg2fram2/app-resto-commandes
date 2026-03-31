@@ -7,7 +7,7 @@ interface LigneInfo {
   quantite: number;
   statut: string;
   numeroService: number;
-  platNomJson: string;
+  plat: { nomJson: string };
   notes?: string | null;
 }
 
@@ -197,7 +197,7 @@ export default function StaffPage() {
                             <div key={l.id} className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <span className="text-sm text-gray-700">
-                                  {l.quantite}× {parseNom(l.platNomJson)}
+                                  {l.quantite}× {parseNom(l.plat.nomJson)}
                                 </span>
                                 {l.notes && (
                                   <p className="text-xs text-indigo-600 italic mt-0.5">📝 {l.notes}</p>
@@ -223,7 +223,7 @@ export default function StaffPage() {
                         <div className="space-y-1">
                           {servis.map((l) => (
                             <p key={l.id} className="text-sm text-gray-400 line-through">
-                              {l.quantite}× {parseNom(l.platNomJson)}
+                              {l.quantite}× {parseNom(l.plat.nomJson)}
                             </p>
                           ))}
                         </div>
@@ -239,7 +239,7 @@ export default function StaffPage() {
                           {enAttente.map((l) => (
                             <div key={l.id}>
                               <p className="text-sm text-gray-500">
-                                {l.quantite}× {parseNom(l.platNomJson)}
+                                {l.quantite}× {parseNom(l.plat.nomJson)}
                               </p>
                               {l.notes && (
                                 <p className="text-xs text-indigo-400 italic mt-0.5">📝 {l.notes}</p>

@@ -56,6 +56,15 @@ export async function DELETE(request: NextRequest) {
     data: { statut: "terminee", closedAt: new Date() },
   });
 
+  // Mark all non-terminal lignes as terminé
+  await prisma.ligneCommande.updateMany({
+    where: {
+      commande: { sessionId },
+      statut: { in: ["en_attente", "a_lancer", "servi"] },
+    },
+    data: { statut: "termine" },
+  });
+
   await prisma.table.update({
     where: { id: session.tableId },
     data: { statut: "libre" },
