@@ -8,7 +8,6 @@ export async function GET(request: NextRequest) {
 
   const tables = await prisma.table.findMany({
     where: { restaurantId },
-    orderBy: { numero: "asc" },
     include: {
       sessions: {
         where: { statut: "ouverte" },
@@ -24,6 +23,16 @@ export async function GET(request: NextRequest) {
         take: 1,
       },
     },
+  });
+
+  // Sort numerically where possible, then alphabetically for named tables
+  tables.sort((a, b) => {
+    const na = parseInt(a.numero, 10);
+    const nb = parseInt(b.numero, 10);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    if (!isNaN(na)) return -1;
+    if (!isNaN(nb)) return 1;
+    return a.numero.localeCompare(b.numero);
   });
 
   return NextResponse.json(tables);

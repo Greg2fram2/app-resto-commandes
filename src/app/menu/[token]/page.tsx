@@ -7,6 +7,7 @@ interface Plat {
   id: string;
   nom: string;
   description: string;
+  ingredients: string;
   prix: number;
   photoUrl: string | null;
   disponible: boolean;
@@ -151,6 +152,7 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
   );
 
   function updateQuantity(plat: Plat, delta: number) {
+    setOrderSent(false);
     setCart((prev) => {
       const next = new Map(prev);
       const existing = next.get(plat.id);
@@ -390,6 +392,10 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
 
                 {plat.description && (
                   <p className="text-gray-500 text-sm mb-2 leading-relaxed">{plat.description}</p>
+                )}
+
+                {plat.ingredients && (
+                  <p className="text-gray-400 text-xs mb-2 italic">{plat.ingredients}</p>
                 )}
 
                 {/* Tags */}
