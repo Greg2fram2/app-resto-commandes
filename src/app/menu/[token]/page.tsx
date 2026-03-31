@@ -52,7 +52,13 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
   const [orderSent, setOrderSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [locale] = useState("fr");
+  const [locale, setLocale] = useState<string>(() => {
+    if (typeof navigator !== "undefined") {
+      const lang = navigator.language?.split("-")[0] ?? "fr";
+      return ["fr", "en", "es", "de", "it"].includes(lang) ? lang : "fr";
+    }
+    return "fr";
+  });
   const [tableInfo, setTableInfo] = useState<{ numero: string } | null>(null);
   const [tableNotOpen, setTableNotOpen] = useState(false);
 
@@ -62,9 +68,9 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
       .then((data: Category[]) => {
         setCategories(data);
         if (data.length > 0) setActiveCategory(data[0].id);
-      });
+      })
+      .catch(() => {});
 
-    // Get table info from token
     fetch(`/api/tables/by-token?token=${token}`)
       .then((r) => r.json())
       .then((data: { numero: string }) => setTableInfo(data))
@@ -88,8 +94,17 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
       if (newQty <= 0) {
         next.delete(plat.id);
       } else {
-        next.set(plat.id, { plat, quantite: newQty });
+        next.set(plat.id, { plat, quantite: newQty, notes: existing?.notes });
       }
+      return next;
+    });
+  }
+
+  function updateNotes(platId: string, notes: string) {
+    setCart((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(platId);
+      if (existing) next.set(platId, { ...existing, notes: notes || undefined });
       return next;
     });
   }
@@ -163,12 +178,21 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {Array.from(cart.values()).map((item) => (
-            <div key={item.plat.id} className="bg-white rounded-xl shadow-sm p-4 flex justify-between items-center">
-              <div className="flex-1">
-                <p className="font-medium text-gray-800">{item.plat.nom}</p>
-                <p className="text-gray-500 text-sm">{item.plat.prix.toFixed(2)} € × {item.quantite}</p>
+            <div key={item.plat.id} className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex justify-between items-center">
+                <div className="flex-1">
+                  <p className="font-medium text-gray-800">{item.plat.nom}</p>
+                  <p className="text-gray-500 text-sm">{item.plat.prix.toFixed(2)} € × {item.quantite}</p>
+                </div>
+                <p className="font-semibold text-gray-800">{(item.plat.prix * item.quantite).toFixed(2)} €</p>
               </div>
-              <p className="font-semibold text-gray-800">{(item.plat.prix * item.quantite).toFixed(2)} €</p>
+              <input
+                type="text"
+                placeholder="Note (sans oignons, bien cuit...)"
+                value={item.notes ?? ""}
+                onChange={(e) => updateNotes(item.plat.id, e.target.value)}
+                className="mt-2 w-full text-sm border rounded-lg px-3 py-1.5 text-gray-600 placeholder-gray-400"
+              />
             </div>
           ))}
         </div>
@@ -206,7 +230,18 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
           </p>
           <h1 className="text-xl font-bold text-gray-800">La Belle Époque</h1>
         </div>
-        <div className="text-2xl">🌐</div>
+        <select
+          value={locale}
+          onChange={(e) => setLocale(e.target.value)}
+          className="text-sm border rounded-lg px-2 py-1 text-gray-600 bg-white"
+          aria-label="Langue"
+        >
+          <option value="fr">🇫🇷 FR</option>
+          <option value="en">🇬🇧 EN</option>
+          <option value="es">🇪🇸 ES</option>
+          <option value="de">🇩🇪 DE</option>
+          <option value="it">🇮🇹 IT</option>
+        </select>
       </header>
 
       {/* Category tabs */}
