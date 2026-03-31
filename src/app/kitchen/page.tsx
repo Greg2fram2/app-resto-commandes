@@ -37,10 +37,18 @@ function minutesSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
 }
 
+const KITCHEN_LOCALES = [
+  { code: "fr", label: "FR" },
+  { code: "en", label: "EN" },
+  { code: "es", label: "ES" },
+  { code: "de", label: "DE" },
+];
+
 export default function KitchenPage() {
   const [orders, setOrders] = useState<TableOrder[]>([]);
   const [connected, setConnected] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
+  const [locale, setLocale] = useState("fr");
   const [newTableIds, setNewTableIds] = useState<Set<string>>(new Set());
   const audioCtxRef = useRef<AudioContext | null>(null);
   const restaurantId = "demo-restaurant";
@@ -156,10 +164,23 @@ export default function KitchenPage() {
           <div className="w-3 h-3 rounded-full bg-red-400 animate-pulse" />
           <span className="text-lg font-bold tracking-wide uppercase">Cuisine</span>
         </div>
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-3 text-sm flex-wrap">
           <div className={`flex items-center gap-1.5 ${connected ? "text-green-400" : "text-red-400"}`}>
             <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-red-400"}`} />
             {connected ? "Connecté" : "Déconnecté"}
+          </div>
+          <div className="flex rounded-lg overflow-hidden border border-gray-600">
+            {KITCHEN_LOCALES.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => setLocale(l.code)}
+                className={`px-2.5 py-1 text-xs font-medium transition ${
+                  locale === l.code ? "bg-gray-100 text-gray-900" : "bg-transparent text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
           </div>
           <button
             onClick={() => setSoundOn((s) => !s)}
@@ -219,7 +240,7 @@ export default function KitchenPage() {
                     </span>
                     <div>
                       <span className="text-white font-medium">
-                        {parseNom(ligne.platNomJson)}
+                        {parseNom(ligne.platNomJson, locale)}
                       </span>
                       {ligne.notes && (
                         <p className="text-xs text-gray-400 italic mt-0.5">📝 {ligne.notes}</p>

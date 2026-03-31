@@ -192,15 +192,20 @@ export default function StaffPage() {
                         <p className="text-xs font-semibold text-orange-500 uppercase mb-1.5">
                           🍳 En cuisine
                         </p>
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           {aLancer.map((l) => (
-                            <div key={l.id} className="flex items-center justify-between">
-                              <span className="text-sm text-gray-700">
-                                {l.quantite}× {parseNom(l.platNomJson)}
-                              </span>
+                            <div key={l.id} className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm text-gray-700">
+                                  {l.quantite}× {parseNom(l.platNomJson)}
+                                </span>
+                                {l.notes && (
+                                  <p className="text-xs text-indigo-600 italic mt-0.5">📝 {l.notes}</p>
+                                )}
+                              </div>
                               <button
                                 onClick={() => marquerServi(l.id)}
-                                className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium hover:bg-green-200"
+                                className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium hover:bg-green-200 shrink-0"
                               >
                                 Marquer servi
                               </button>
@@ -230,11 +235,16 @@ export default function StaffPage() {
                         <p className="text-xs font-semibold text-gray-400 uppercase mb-1.5">
                           ⏳ En attente
                         </p>
-                        <div className="space-y-1 mb-3">
+                        <div className="space-y-1.5 mb-3">
                           {enAttente.map((l) => (
-                            <p key={l.id} className="text-sm text-gray-500">
-                              {l.quantite}× {parseNom(l.platNomJson)}
-                            </p>
+                            <div key={l.id}>
+                              <p className="text-sm text-gray-500">
+                                {l.quantite}× {parseNom(l.platNomJson)}
+                              </p>
+                              {l.notes && (
+                                <p className="text-xs text-indigo-400 italic mt-0.5">📝 {l.notes}</p>
+                              )}
+                            </div>
                           ))}
                         </div>
                         <button

@@ -2,13 +2,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sseBus } from "@/lib/sse";
 
+// Simple in-process idempotency cache (24h TTL)
+// Works for single-process SQLite deployments; replace with Redis for multi-process
+const idempotencyCache = new Map<string, { commandeId: string; at: number }>();
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+
+function pruneIdempotencyCache() {
+  const now = Date.now();
+  for (const [key, val] of idempotencyCache) {
+    if (now - val.at > IDEMPOTENCY_TTL_MS) idempotencyCache.delete(key);
+  }
+}
+
 // POST /api/orders — place an order
 export async function POST(request: NextRequest) {
   const body = await request.json() as {
     tableToken: string;
     items: { platId: string; quantite: number; notes?: string }[];
     locale?: string;
+    idempotencyKey?: string;
   };
+
+  // Dedup check
+  if (body.idempotencyKey) {
+    pruneIdempotencyCache();
+    const cached = idempotencyCache.get(body.idempotencyKey);
+    if (cached) {
+      return NextResponse.json({ id: cached.commandeId, deduplicated: true }, { status: 200 });
+    }
+  }
 
   const table = await prisma.table.findUnique({
     where: { qrToken: body.tableToken },
@@ -83,6 +105,11 @@ export async function POST(request: NextRequest) {
       },
     },
   });
+
+  // Cache idempotency key to prevent duplicate submissions
+  if (body.idempotencyKey) {
+    idempotencyCache.set(body.idempotencyKey, { commandeId: commande.id, at: Date.now() });
+  }
 
   // Broadcast to SSE clients (kitchen + staff)
   sseBus.broadcast(table.restaurantId, "new-order", {

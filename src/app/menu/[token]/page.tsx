@@ -66,15 +66,17 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
 
   const QUEUE_KEY = `offline-orders-${token}`;
 
-  function loadQueue(): Array<{ items: { platId: string; quantite: number; notes?: string }[]; locale: string }> {
+  type QueuedOrder = { idempotencyKey: string; items: { platId: string; quantite: number; notes?: string }[]; locale: string };
+
+  function loadQueue(): QueuedOrder[] {
     try {
-      return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? "[]") as Array<{ items: { platId: string; quantite: number; notes?: string }[]; locale: string }>;
+      return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? "[]") as QueuedOrder[];
     } catch {
       return [];
     }
   }
 
-  function saveQueue(queue: Array<{ items: { platId: string; quantite: number; notes?: string }[]; locale: string }>) {
+  function saveQueue(queue: QueuedOrder[]) {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
     setPendingCount(queue.length);
   }
@@ -82,13 +84,13 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
   async function flushQueue() {
     const queue = loadQueue();
     if (queue.length === 0) return;
-    const remaining: typeof queue = [];
+    const remaining: QueuedOrder[] = [];
     for (const order of queue) {
       try {
         const res = await fetch("/api/orders", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tableToken: token, items: order.items, locale: order.locale }),
+          body: JSON.stringify({ tableToken: token, items: order.items, locale: order.locale, idempotencyKey: order.idempotencyKey }),
         });
         if (!res.ok) remaining.push(order);
       } catch {
@@ -168,6 +170,7 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
   async function confirmOrder() {
     setSending(true);
     setError("");
+    const idempotencyKey = crypto.randomUUID();
     const items = Array.from(cart.values()).map((item) => ({
       platId: item.plat.id,
       quantite: item.quantite,
@@ -176,7 +179,7 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
 
     if (!isOnline) {
       const queue = loadQueue();
-      saveQueue([...queue, { items, locale }]);
+      saveQueue([...queue, { idempotencyKey, items, locale }]);
       setCart(new Map());
       setShowCart(false);
       setOrderSent(true);
@@ -188,7 +191,7 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tableToken: token, items, locale }),
+        body: JSON.stringify({ tableToken: token, items, locale, idempotencyKey }),
       });
 
       if (res.status === 403) {
@@ -205,10 +208,10 @@ export default function MenuPage({ params }: { params: Promise<{ token: string }
       setCart(new Map());
       setShowCart(false);
       setOrderSent(true);
-    } catch (e: unknown) {
+    } catch {
       // Network failure — queue for later
       const queue = loadQueue();
-      saveQueue([...queue, { items, locale }]);
+      saveQueue([...queue, { idempotencyKey, items, locale }]);
       setCart(new Map());
       setShowCart(false);
       setOrderSent(true);

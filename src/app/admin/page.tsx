@@ -6,6 +6,7 @@ interface PlatRaw {
   id: string;
   nomJson: string;
   descriptionJson: string;
+  ingredientsJson: string;
   prix: number;
   disponible: boolean;
   typeService: string;
@@ -123,6 +124,7 @@ export default function AdminPage() {
     if (updates.tags !== undefined) {
       try { body.tags = JSON.parse(updates.tags as string); } catch { body.tags = []; }
     }
+    // ingredientsJson is already a serialized JSON string — pass it directly
     await fetch(`/api/admin/plats/${editingPlat.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -145,6 +147,8 @@ export default function AdminPage() {
     nomEn: string;
     descriptionFr: string;
     descriptionEn: string;
+    ingredientsFr: string;
+    ingredientsEn: string;
     photoUrl: string;
     prix: number;
     typeService: string;
@@ -159,6 +163,7 @@ export default function AdminPage() {
         categorieId: data.categorieId,
         nomJson: JSON.stringify({ fr: data.nomFr, en: data.nomEn }),
         descriptionJson: JSON.stringify({ fr: data.descriptionFr, en: data.descriptionEn }),
+        ingredientsJson: JSON.stringify({ fr: data.ingredientsFr, en: data.ingredientsEn }),
         prix: data.prix,
         photoUrl: data.photoUrl || undefined,
         typeService: data.typeService,
@@ -592,6 +597,12 @@ function EditPlatModal({
   const [descEn, setDescEn] = useState(() => {
     try { return (JSON.parse(plat.descriptionJson) as Record<string, string>).en ?? ""; } catch { return ""; }
   });
+  const [ingredsFr, setIngredsFr] = useState(() => {
+    try { return (JSON.parse(plat.ingredientsJson) as Record<string, string>).fr ?? ""; } catch { return ""; }
+  });
+  const [ingredsEn, setIngredsEn] = useState(() => {
+    try { return (JSON.parse(plat.ingredientsJson) as Record<string, string>).en ?? ""; } catch { return ""; }
+  });
   const [photoUrl, setPhotoUrl] = useState(plat.photoUrl ?? "");
   const [prix, setPrix] = useState(plat.prix);
   const [typeService, setTypeService] = useState(plat.typeService);
@@ -612,9 +623,11 @@ function EditPlatModal({
   function handleSave() {
     const nomJson = JSON.stringify({ fr: nomFr, en: nomEn });
     const descriptionJson = JSON.stringify({ fr: descFr, en: descEn });
+    const ingredientsJson = JSON.stringify({ fr: ingredsFr, en: ingredsEn });
     onSave({
       nomJson,
       descriptionJson,
+      ingredientsJson,
       photoUrl: photoUrl || null,
       prix,
       typeService,
@@ -648,6 +661,16 @@ function EditPlatModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description (EN)</label>
                 <textarea value={descEn} onChange={(e) => setDescEn(e.target.value)} rows={2} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="English description" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ingrédients (FR)</label>
+                <input value={ingredsFr} onChange={(e) => setIngredsFr(e.target.value)} placeholder="Tomates, mozzarella..." className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ingrédients (EN)</label>
+                <input value={ingredsEn} onChange={(e) => setIngredsEn(e.target.value)} placeholder="Tomatoes, mozzarella..." className="w-full border rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
             <div>
@@ -722,6 +745,8 @@ function AddPlatModal({
     nomEn: string;
     descriptionFr: string;
     descriptionEn: string;
+    ingredientsFr: string;
+    ingredientsEn: string;
     photoUrl: string;
     prix: number;
     typeService: string;
@@ -736,6 +761,8 @@ function AddPlatModal({
   const [nomEn, setNomEn] = useState("");
   const [descriptionFr, setDescriptionFr] = useState("");
   const [descriptionEn, setDescriptionEn] = useState("");
+  const [ingredientsFr, setIngredientsFr] = useState("");
+  const [ingredientsEn, setIngredientsEn] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [prix, setPrix] = useState(0);
   const [typeService, setTypeService] = useState("plat");
@@ -751,7 +778,7 @@ function AddPlatModal({
 
   function handleSave() {
     if (!nomFr.trim() || prix <= 0 || !categorieId) return;
-    onSave({ categorieId, nomFr, nomEn, descriptionFr, descriptionEn, photoUrl, prix, typeService, allergenes: selectedAllergens, tags: selectedTags });
+    onSave({ categorieId, nomFr, nomEn, descriptionFr, descriptionEn, ingredientsFr, ingredientsEn, photoUrl, prix, typeService, allergenes: selectedAllergens, tags: selectedTags });
   }
 
   return (
@@ -787,6 +814,16 @@ function AddPlatModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description (EN)</label>
                 <textarea value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} rows={2} placeholder="English description" className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ingrédients (FR)</label>
+                <input value={ingredientsFr} onChange={(e) => setIngredientsFr(e.target.value)} placeholder="Tomates, mozzarella..." className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ingrédients (EN)</label>
+                <input value={ingredientsEn} onChange={(e) => setIngredientsEn(e.target.value)} placeholder="Tomatoes, mozzarella..." className="w-full border rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
             <div>
